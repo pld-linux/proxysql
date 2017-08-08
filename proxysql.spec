@@ -1,13 +1,13 @@
 Summary:	A high-performance MySQL proxy
 Name:		proxysql
-Version:	1.3.7
+Version:	1.4.1
 Release:	0.1
 # The entire source code is GPLv3+ except deps/re2 and deps/jemalloc which is BSD
 # and deps/mariadb-connector-c which is LGPLv2+
 License:	GPLv3+ and LGPLv2+ and BSD
 Group:		Development/Tools
 Source0:	https://github.com/sysown/proxysql/archive/v%{version}/%{name}-%{version}.tar.gz
-# Source0-md5:	0698bb3f4daec5f80dacdf5011f6ac80
+# Source0-md5:	ce4f12a3ac4861dd223fbbfed56cecdd
 Source1:	%{name}.service
 Source2:	%{name}.1
 Patch0:		%{name}_debundle_libconfig_libdaemon_sqlite3.patch
@@ -33,13 +33,13 @@ proxy for MySQL and forks (like Percona Server and MariaDB).
 
 %prep
 %setup -q
-%patch0 -p1
-
-rm -r deps/libconfig deps/libdaemon deps/sqlite3
+#%patch0 -p1
+#rm -r deps/libconfig deps/libdaemon deps/sqlite3
 
 %build
-%configure
-%{__make}
+%{__make} \
+	CC="%{__cc}" \
+	CXX="%{__cxx}" 
 
 %install
 rm -rf $RPM_BUILD_ROOT

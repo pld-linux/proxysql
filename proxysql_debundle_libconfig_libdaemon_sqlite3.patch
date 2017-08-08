@@ -1,0 +1,132 @@
+# The upstream code bundles 6 libraries: libconfig, libdaemon, sqlite3, re2,
+# mariadb-connector-c and jemalloc.
+# This patch de-bundles 3 of these libraries: libconfig, libdaemon and sqlite3
+# The remaining libraries are not de-bundled due to different reasons (mainly
+# being patched, more info here: https://bugzilla.redhat.com/show_bug.cgi?id=1457929).
+
+diff --git a/deps/Makefile b/deps/Makefile
+index a1912f1..80f9445 100644
+--- a/deps/Makefile
++++ b/deps/Makefile
+@@ -1,17 +1,9 @@
+ 
+ 
+-default: libconfig libdaemon jemalloc mariadb_client re2 sqlite3
++default: jemalloc mariadb_client re2
+ .PHONY: default
+ 
+ 
+-libdaemon/libdaemon/libdaemon/.libs/libdaemon.a: 
+-	cd libdaemon && rm -rf libdaemon-0.14
+-	cd libdaemon && tar -zxf libdaemon-0.14.tar.gz
+-	cd libdaemon/libdaemon && ./configure --disable-examples
+-	cd libdaemon/libdaemon && CC=${CC} CXX=${CXX} ${MAKE}
+-
+-libdaemon: libdaemon/libdaemon/libdaemon/.libs/libdaemon.a
+-
+ jemalloc/jemalloc/lib/libjemalloc.a:
+ 	cd jemalloc && rm -rf jemalloc-4.3.1
+ 	cd jemalloc && tar -jxf jemalloc-4.3.1.tar.bz2
+@@ -40,20 +32,6 @@ mariadb-client-library/mariadb_client/include/my_config.h:
+ mariadb_client: mariadb-client-library/mariadb_client/include/my_config.h
+ 
+ 
+-sqlite3/sqlite3/sqlite3.o:
+-	cd sqlite3/sqlite3 && ${CC} -O2 -c -o sqlite3.o sqlite3.c -DSQLITE_ENABLE_MEMORY_MANAGEMENT
+-
+-sqlite3: sqlite3/sqlite3/sqlite3.o
+-
+-libconfig/libconfig/lib/.libs/libconfig++.a:
+-	cd libconfig && rm -rf libconfig-1.4.9
+-	cd libconfig && tar -zxf libconfig-1.4.9.tar.gz
+-	cd libconfig/libconfig && ./configure --disable-examples
+-	cd libconfig/libconfig && CC=${CC} CXX=${CXX} ${MAKE}
+-
+-libconfig: libconfig/libconfig/lib/.libs/libconfig++.a
+-
+-
+ re2/re2/obj/libre2.a:
+ 	cd re2 && rm -rf re2
+ 	cd re2 && tar -zxf re2-20140304.tgz
+diff --git a/lib/Makefile b/lib/Makefile
+index cdc28d8..f2cd303 100644
+--- a/lib/Makefile
++++ b/lib/Makefile
+@@ -11,20 +11,15 @@ MARIADB_IDIR=$(MARIADB_PATH)/include
+ JEMALLOC_PATH=$(DEPS_PATH)/jemalloc/jemalloc
+ JEMALLOC_IDIR=$(JEMALLOC_PATH)/include/jemalloc
+ 
+-LIBCONFIG_PATH=$(DEPS_PATH)/libconfig/libconfig-1.4.9
+-LIBCONFIG_IDIR=-I$(LIBCONFIG_PATH)/lib
+-
+ #INJECTION_PATH=$(DEPS_PATH)/libinjection
+ #INJECTION_IDIR=$(INJECTION_PATH)
+ 
+ RE2_PATH=$(DEPS_PATH)/re2/re2
+ RE2_IDIR=$(RE2_PATH)
+ 
+-SQLITE3_DIR=$(DEPS_PATH)/sqlite3/sqlite3
+-
+ IDIR=../include
+ 
+-IDIRS=-I$(IDIR) -I$(JEMALLOC_IDIR) -I$(MARIADB_IDIR) $(LIBCONFIG_IDIR) -I$(RE2_IDIR) -I$(SQLITE3_DIR)
++IDIRS=-I$(IDIR) -I$(JEMALLOC_IDIR) -I$(MARIADB_IDIR) -I$(RE2_IDIR)
+ 
+ LDIRS=-L$(JEMALLOC_PATH)/lib -L$(RE2_PATH)/obj -L$(INJECTION_PATH)
+ 
+@@ -59,8 +54,8 @@ $(ODIR)/%.o: %.c
+ $(ODIR)/%.oo: %.cpp
+ 	$(CXX) -fPIC -c -o $@ $< $(MYCPPFLAGS) $(CPPFLAGS)
+ 
+-libproxysql.a: $(ODIR) $(OBJ) $(OBJ_CPP) $(RE2_PATH)/obj/libre2.a $(SQLITE3_DIR)/sqlite3.o 
+-	ar rcs $@ $(OBJ) $(OBJ_CPP) $(RE2_PATH)/obj/libre2.a $(SQLITE3_DIR)/sqlite3.o
++libproxysql.a: $(ODIR) $(OBJ) $(OBJ_CPP) $(RE2_PATH)/obj/libre2.a
++	ar rcs $@ $(OBJ) $(OBJ_CPP) $(RE2_PATH)/obj/libre2.a
+ 
+ $(ODIR):
+ 	mkdir $(ODIR)
+diff --git a/src/Makefile b/src/Makefile
+index fbe3741..b6c3234 100644
+--- a/src/Makefile
++++ b/src/Makefile
+@@ -9,36 +9,26 @@ MARIADB_IDIR=$(MARIADB_PATH)/include
+ MARIADB_LDIR=$(MARIADB_PATH)/libmariadb
+ 
+ 
+-DAEMONPATH=$(DEPS_PATH)/libdaemon/libdaemon
+-DAEMONPATH_IDIR=$(DAEMONPATH)
+-DAEMONPATH_LDIR=$(DAEMONPATH)/libdaemon/.libs
+-
+ JEMALLOC_PATH=$(DEPS_PATH)/jemalloc/jemalloc
+ JEMALLOC_IDIR=$(JEMALLOC_PATH)/include/jemalloc
+ JEMALLOC_LDIR=$(JEMALLOC_PATH)/lib
+ 
+-LIBCONFIG_PATH=$(DEPS_PATH)/libconfig/libconfig-1.4.9
+-LIBCONFIG_IDIR=-I$(LIBCONFIG_PATH)/lib
+-LIBCONFIG_LDIR=-L$(LIBCONFIG_PATH)/lib/.libs
+-
+ RE2_PATH=$(DEPS_PATH)/re2/re2
+ RE2_IDIR=$(RE2_PATH)
+ 
+-SQLITE3_DIR=$(DEPS_PATH)/sqlite3/sqlite3
+-
+ IDIR=../include
+ LDIR=../lib
+-IDIRS=-I$(IDIR) -I$(JEMALLOC_IDIR) -I$(MARIADB_IDIR) $(LIBCONFIG_IDIR) -I$(DAEMONPATH_IDIR) -I$(SQLITE3_DIR)
+-LDIRS=-L$(LDIR) -L$(JEMALLOC_LDIR) $(LIBCONFIG_LDIR) -L$(RE2_PATH)/obj -L$(MARIADB_LDIR) -L$(DAEMONPATH_LDIR)
++IDIRS=-I$(IDIR) -I$(JEMALLOC_IDIR) -I$(MARIADB_IDIR)
++LDIRS=-L$(LDIR) -L$(JEMALLOC_LDIR) -L$(RE2_PATH)/obj -L$(MARIADB_LDIR)
+ 
+ 
+ MYCPPFLAGS=-std=c++11 $(IDIRS) $(OPTZ) $(DEBUG)
+ LDFLAGS+=
+ NOJEMALLOC := $(shell echo $(NOJEMALLOC))
+ ifeq ($(NOJEMALLOC),1)
+-MYLIBS=-Wl,--export-dynamic -Wl,-Bstatic -lconfig -lproxysql -ldaemon -lconfig++ -lre2 -lmariadbclient -Wl,-Bdynamic -lpthread -lm -lz -lrt -lcrypto -lssl $(EXTRALINK)
++MYLIBS=-Wl,--export-dynamic -Wl,-Bstatic -lproxysql -lre2 -lmariadbclient -Wl,-Bdynamic -lconfig -lconfig++ -ldaemon -lsqlite3 -lpthread -lm -lz -lrt -lcrypto -lssl $(EXTRALINK)
+ else
+-MYLIBS=-Wl,--export-dynamic -Wl,-Bstatic -lconfig -lproxysql -ldaemon -ljemalloc -lconfig++ -lre2 -lmariadbclient -Wl,-Bdynamic -lpthread -lm -lz -lrt -lcrypto -lssl $(EXTRALINK)
++MYLIBS=-Wl,--export-dynamic -Wl,-Bstatic -lproxysql -ljemalloc -lre2 -lmariadbclient -Wl,-Bdynamic -lconfig -lconfig++ -ldaemon -lsqlite3 -lpthread -lm -lz -lrt -lcrypto -lssl $(EXTRALINK)
+ endif
+ 
+ UNAME_S := $(shell uname -s)
